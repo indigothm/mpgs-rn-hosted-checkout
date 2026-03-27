@@ -223,4 +223,6 @@ This is useful for comparing behaviour against the React Native implementation.
 
 ## License
 
-Private — not for redistribution.
+This project is licensed under the MIT License.
+
+*Note: Mastercard Payment Gateway Services (MPGS) and associated trademarks are copyright of Mastercard.*
