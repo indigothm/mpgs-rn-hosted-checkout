@@ -172,6 +172,28 @@ sequenceDiagram
 
 This minimises the bridge complexity — the WebView handles the entire card capture and 3DS payment flow securely, and only posts the final result back to the native app context.
 
+## Wallets & Alternative Payments
+
+While the MPGS Hosted Session handles standard card payments seamlessly in a WebView, integrating digital wallets and alternative payment methods (APMs) in a React Native app requires different approaches:
+
+### Google Pay
+- **Approach**: Fully native.
+- **Integration**: The app uses `@react-native-google-signin/google-signin` (or a dedicated Google Pay package) to request the Encrypted Payment Data directly from the Android OS.
+- **MPGS Handoff**: The raw base64-encoded `devicePaymentToken` is sent to your backend, which forwards it to the MPGS API (`/api/pay/google`) as a `devicePayment` within `sourceOfFunds`.
+- **Considerations**: Only works on physical or emulated Android devices (not inside Expo Go) and requires production approval and configuration in the Google Pay & Wallet Console.
+
+### Apple Pay
+- **Approach**: Fully native.
+- **Integration**: Typically implemented using `@stripe/stripe-react-native` or another Native iOS bridge to pop the native Apple Pay sheet.
+- **MPGS Handoff**: Similar to Google Pay, the resulting PKPayment token is passed to your backend and converted to an MPGS `devicePaymentToken`.
+- **Considerations**: *Cannot* be handled inside the WebView. It requires serious configuration: Apple Developer Merchant IDs, Merchant Identity Certificates, and Payment Processing Certificates shared with your MPGS provider. Apple Pay will *never* correctly instantiate via a WebView in a React Native app without jumping out to Safari.
+
+### PayPal
+- **Approach**: Browser/WebView redirect.
+- **Integration**: MPGS provides a Browser Payment interaction model for PayPal. Your backend initiates the transaction, returns a URL, and you pop a WebView or `SFSafariViewController`/`Custom Tabs` to let the user log into PayPal.
+- **MPGS Handoff**: After the user approves the payment, PayPal redirects them back to an endpoint on your backend, which then queries MPGS to definitively capture the payment.
+- **Considerations**: PayPal payments cannot be finalized from the client; a backend webhook or return-URL handler is strictly required to verify the payment status after the user redirect.
+
 ## Running on a Physical Device
 
 When running on a physical device, `localhost` won't work. Update `src/constants/config.ts` to point to your machine's LAN IP:
