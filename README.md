@@ -244,7 +244,12 @@ Both wallet hooks use `@rnw-community/react-native-payments` (W3C Payment Reques
 
 - **Google Pay** (`src/payments/useGooglePay.ts`): Implemented via `PaymentRequest` with `android-pay` method. Grabs the `devicePaymentToken` and posts it to the backend. Requires a dev build on Android (hidden in Expo Go).
 - **Apple Pay** (`src/payments/useApplePay.ts`): Implemented via `PaymentRequest` with `apple-pay` method. Requires an Apple Developer Merchant ID configured in the hook. Requires a dev build on iOS (hidden in Expo Go).
-- **PayPal** (`src/payments/usePayPal.ts`): Requires the MPGS Browser Payment flow. Check the [MPGS PayPal Documentation](https://tyro.gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalPaymentMethods/paypal.html?locale=en_US) for full implementation details. PayPal payments involve an out-of-app redirect using `INITIATE_BROWSER_PAYMENT` and a backend webhook or deeply-linked return handler to confirm capture.
+- **PayPal** (`src/payments/usePayPal.ts`): Requires MPGS Browser Payments. To set it up:
+  1. Enable PayPal as a payment method in your MPGS merchant portal
+  2. Add a `POST /api/pay/paypal` backend route that calls MPGS `INITIATE_BROWSER_PAYMENT` with `browserPayment.operation: "PAY"` and `sourceOfFunds.type: "PAYPAL"`
+  3. MPGS returns a `redirectUrl` — open it in the device browser or an in-app browser so the user can authenticate with PayPal
+  4. Configure a return URL that deep-links back to your app (e.g. via Expo Linking)
+  5. On return, call MPGS `RETRIEVE_ORDER` to confirm the payment status
 
 ## Running on a Physical Device
 

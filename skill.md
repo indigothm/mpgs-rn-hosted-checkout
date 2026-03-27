@@ -193,7 +193,7 @@ ENABLE_3DS=true
 
 ### Adding a new payment method
 1. Create a hook in `src/payments/` (follow `useGooglePay.ts` pattern)
-2. Add the method to `PaymentMethodSelector.tsx`
+2. Add a wallet button to the accordion in `src/checkout/checkoutHtml.ts`
 3. Handle the `WALLET_CLICKED` message in `app/payment/checkout.tsx`
 4. Add backend route in `backend/src/server.ts` if needed
 5. Add MPGS API call in `backend/src/mpgs.ts` if needed
