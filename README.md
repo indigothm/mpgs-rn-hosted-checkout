@@ -180,12 +180,17 @@ sequenceDiagram
     API->>MPGS: INITIATE_AUTHENTICATION
     MPGS-->>API: 3DS Result
     API-->>WV: 3DS Result
-    
-    alt 3DS Challenge required
-        WV->>MPGS: Mount 3DS challenge iframe
-        User->>MPGS: Complete 3DS auth
+
+    WV->>API: POST /api/3ds/authenticate
+    API->>MPGS: AUTHENTICATE_PAYER
+    MPGS-->>API: Authentication Result
+    API-->>WV: Authentication Result
+
+    alt 3DS Challenge required (status=PENDING)
+        WV->>WV: Mount 3DS challenge HTML
+        User->>WV: Complete 3DS challenge
         WV->>API: GET /api/3ds/status (poll)
-        API->>MPGS: AUTHENTICATE_PAYER
+        API->>MPGS: Retrieve transaction status
         MPGS-->>API: completed
         API-->>WV: success
     end
