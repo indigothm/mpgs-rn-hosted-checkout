@@ -120,16 +120,57 @@ npx expo start --dev-client
 
 The app uses a **WebView-centric** approach for card payments:
 
-1. **Native** calls `getConfig()` + `createSession()` to get MPGS config and a session ID
-2. **Native** navigates to the WebView checkout screen, passing config as params
-3. **WebView** loads a self-contained HTML page that:
-   - Loads MPGS `session.js` from the gateway CDN
-   - Renders hosted card input fields (PCI-compliant iframes)
-   - Runs the full 3DS flow (initiate → authenticate → challenge polling → pay)
-   - Posts the result back to native via `window.ReactNativeWebView.postMessage()`
-4. **Native** receives the result and navigates to confirmation or error
+```mermaid
+sequenceDiagram
+    participant User
+    participant RN as React Native
+    participant WV as WebView (HTML)
+    participant API as Node Backend
+    participant MPGS as Mastercard Gateway
+    
+    Note over RN,API: 1. Setup Phase
+    RN->>API: POST /api/session
+    API->>MPGS: Create Hosted Session
+    MPGS-->>API: sessionId
+    API-->>RN: sessionId
+    
+    Note over RN,WV: 2. Capture Phase
+    RN->>WV: Render embedded HTML with sessionId
+    WV->>MPGS: Load session.js
+    WV->>MPGS: Init HostedSession (creates iframes)
+    WV-->>User: Show Card Form
+    User->>WV: Enter Card details
+    
+    Note over WV,MPGS: 3. Processing Phase
+    User->>WV: Tap Pay
+    WV->>MPGS: HostedSession.updateSessionFromForm()
+    MPGS-->>WV: Success (temp token stored in session)
+    
+    WV->>API: POST /api/3ds/initiate
+    API->>MPGS: INITIATE_AUTHENTICATION
+    MPGS-->>API: 3DS Result
+    API-->>WV: 3DS Result
+    
+    alt 3DS Challenge required
+        WV->>MPGS: Mount 3DS challenge iframe
+        User->>MPGS: Complete 3DS auth
+        WV->>API: GET /api/3ds/status (poll)
+        API->>MPGS: AUTHENTICATE_PAYER
+        MPGS-->>API: completed
+        API-->>WV: success
+    end
+    
+    WV->>API: POST /api/pay
+    API->>MPGS: Execute PAY (using session)
+    MPGS-->>API: Transaction result
+    API-->>WV: Status (SUCCESS/FAILED)
+    
+    Note over RN,WV: 4. Native Handoff
+    WV->>RN: window.ReactNativeWebView.postMessage()
+    RN-->>User: Navigate to Confirmation or Error Screen
+```
 
-This minimises the bridge complexity — the WebView handles the entire payment flow and only posts the final result.
+This minimises the bridge complexity — the WebView handles the entire card capture and 3DS payment flow securely, and only posts the final result back to the native app context.
 
 ## Running on a Physical Device
 
