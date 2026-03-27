@@ -1,5 +1,11 @@
 # MPGS React Native Hosted Checkout
 
+<p align="center">
+  <img src="screenshots/checkout.png" width="300" alt="Checkout Screen" />
+  &nbsp; &nbsp; &nbsp;
+  <img src="screenshots/3ds.png" width="300" alt="3DS Authentication Challenge" />
+</p>
+
 A React Native Expo app integrating Mastercard Payment Gateway Services (MPGS) Hosted Session checkout. Card payments (including 3DS authentication) run inside a WebView, with native screens for order entry, confirmation, and errors.
 
 ## Features
@@ -77,9 +83,8 @@ npx expo start --dev-client
 
 | Card | Number | Expiry | CVV | 3DS Behaviour |
 |------|--------|--------|-----|---------------|
-| Mastercard (frictionless) | `5123456789012346` | Any future date | `100` | 3DS passes silently |
-| Mastercard (challenge) | `5123450000000008` | Any future date | Any 3 digits | Triggers 3DS challenge |
-| Mastercard (challenge, alt) | `2223000000000007` | Any future date | Any 3 digits | Triggers 3DS challenge |
+| Mastercard (No 3DS / Frictionless) | `5123456789012346` | Any future date | `100` | 3DS passes silently |
+| Mastercard (3DS Challenge) | `5123450000000008` | Any future date | Any 3 digits | Triggers 3DS challenge |
 
 ## Project Structure
 
