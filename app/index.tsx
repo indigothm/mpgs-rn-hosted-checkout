@@ -10,12 +10,13 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getConfig, createSession } from '../src/api/mpgs';
-import { PaymentMethodSelector } from '../src/components/PaymentMethodSelector';
+
 import { LoadingOverlay } from '../src/components/LoadingOverlay';
 import { API_BASE_URL } from '../src/constants/config';
 
@@ -66,12 +67,7 @@ export default function OrderScreen() {
     }
   }, [amount, router]);
 
-  const handleGooglePay = useCallback(async () => {
-    Alert.alert(
-      'Google Pay',
-      'Google Pay is only available on Android devices with a development build.'
-    );
-  }, []);
+
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -117,15 +113,15 @@ export default function OrderScreen() {
             </View>
           </View>
 
-          {/* Payment Methods */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>PAYMENT METHOD</Text>
-            <PaymentMethodSelector
-              onCardPress={handleCardPayment}
-              onGooglePayPress={handleGooglePay}
-              disabled={loading}
-            />
-          </View>
+          {/* Continue Button */}
+          <TouchableOpacity
+            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+            onPress={handleCardPayment}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.continueButtonText}>Continue to Checkout</Text>
+          </TouchableOpacity>
 
           {/* Backend URL info */}
           <View style={styles.infoBox}>
@@ -253,5 +249,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
+  },
+  continueButton: {
+    width: '100%',
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#6366f1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+    marginBottom: 24,
+  },
+  continueButtonDisabled: {
+    opacity: 0.5,
+  },
+  continueButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

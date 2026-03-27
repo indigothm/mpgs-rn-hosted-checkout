@@ -247,12 +247,13 @@ export async function pay(
   return res.data;
 }
 
-export async function payWithGooglePay(
+export async function payWithDevicePayment(
   orderId: string,
   transactionId: string,
   amount: string | number,
   currency: string,
-  devicePaymentToken: string
+  devicePaymentToken: string,
+  walletProvider: "GOOGLE_PAY" | "APPLE_PAY" = "GOOGLE_PAY"
 ): Promise<any> {
   const url = `${BASE_URL}/api/rest/version/${API_VERSION}/merchant/${MERCHANT_ID}/order/${orderId}/transaction/${transactionId}`;
 
@@ -261,7 +262,7 @@ export async function payWithGooglePay(
     order: {
       amount,
       currency,
-      walletProvider: "GOOGLE_PAY",
+      walletProvider,
     },
     sourceOfFunds: {
       type: "CARD",
@@ -275,8 +276,11 @@ export async function payWithGooglePay(
     },
   };
 
-  console.log("GPay PAY Request:", payload);
+  console.log(`${walletProvider} PAY Request:`, payload);
   const res = await axios.put(url, payload, authConfig());
-  console.log("GPay PAY Response:", res.status, res.data);
+  console.log(`${walletProvider} PAY Response:`, res.status, res.data);
   return res.data;
 }
+
+/** @deprecated Use payWithDevicePayment instead */
+export const payWithGooglePay = payWithDevicePayment;

@@ -14,7 +14,7 @@ import {
   createTokenWithSession,
   retrieveToken,
   pay,
-  payWithGooglePay,
+  payWithDevicePayment,
 } from "./mpgs";
 
 const app = express();
@@ -132,15 +132,16 @@ app.post("/api/pay", async (req, res, next) => {
   }
 });
 
-// POST /api/pay/google
+// POST /api/pay/google — Wallet PAY (Google Pay & Apple Pay)
 app.post("/api/pay/google", async (req, res, next) => {
   try {
-    const result = await payWithGooglePay(
+    const result = await payWithDevicePayment(
       req.body.orderId,
       req.body.transactionId || req.body.orderId,
       req.body.amount,
       req.body.currency,
-      req.body.devicePaymentToken
+      req.body.devicePaymentToken,
+      req.body.walletProvider || "GOOGLE_PAY"
     );
     res.json(result);
   } catch (err) {

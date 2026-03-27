@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   activeButton: {
     borderColor: '#6366f1',
-    backgroundColor: 'rgba(99, 102, 241, 0.06)',
+    backgroundColor: '#141c36',
     shadowColor: '#6366f1',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.15,
