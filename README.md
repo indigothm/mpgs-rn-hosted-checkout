@@ -172,27 +172,46 @@ sequenceDiagram
 
 This minimises the bridge complexity — the WebView handles the entire card capture and 3DS payment flow securely, and only posts the final result back to the native app context.
 
-## Wallets & Alternative Payments
+## Wallets & Alternative Payments (Apple Pay, Google Pay)
 
-While the MPGS Hosted Session handles standard card payments seamlessly in a WebView, integrating digital wallets and alternative payment methods (APMs) in a React Native app requires different approaches:
+While the MPGS Hosted Session handles standard card capture beautifully inside a WebView, digital wallets (Apple Pay, Google Pay) require a robust Native-first approach in React Native. 
 
-### Google Pay
-- **Approach**: Fully native.
-- **Integration**: The app uses `@react-native-google-signin/google-signin` (or a dedicated Google Pay package) to request the Encrypted Payment Data directly from the Android OS.
-- **MPGS Handoff**: The raw base64-encoded `devicePaymentToken` is sent to your backend, which forwards it to the MPGS API (`/api/pay/google`) as a `devicePayment` within `sourceOfFunds`.
-- **Considerations**: Only works on physical or emulated Android devices (not inside Expo Go) and requires production approval and configuration in the Google Pay & Wallet Console.
+**Architectural Best Practice:** Wallet buttons must be rendered in the **Native UI**, not the HTML WebView. Apple strictly enforces Native button styling and behaviors for Apple Pay, and Google Pay requires native SDK invocation.
 
-### Apple Pay
-- **Approach**: Fully native.
-- **Integration**: Typically implemented using `@stripe/stripe-react-native` or another Native iOS bridge to pop the native Apple Pay sheet.
-- **MPGS Handoff**: Similar to Google Pay, the resulting PKPayment token is passed to your backend and converted to an MPGS `devicePaymentToken`.
-- **Considerations**: *Cannot* be handled inside the WebView. It requires serious configuration: Apple Developer Merchant IDs, Merchant Identity Certificates, and Payment Processing Certificates shared with your MPGS provider. Apple Pay will *never* correctly instantiate via a WebView in a React Native app without jumping out to Safari.
+The repository includes a Native UI component for this exact purpose: `src/components/PaymentMethodSelector.tsx`.
 
-### PayPal
-- **Approach**: Browser/WebView redirect.
-- **Integration**: MPGS provides a Browser Payment interaction model for PayPal. Your backend initiates the transaction, returns a URL, and you pop a WebView or `SFSafariViewController`/`Custom Tabs` to let the user log into PayPal.
-- **MPGS Handoff**: After the user approves the payment, PayPal redirects them back to an endpoint on your backend, which then queries MPGS to definitively capture the payment.
-- **Considerations**: PayPal payments cannot be finalized from the client; a backend webhook or return-URL handler is strictly required to verify the payment status after the user redirect.
+### Native Wallet Flow
+
+Instead of capturing a card through an iframe, the Native App asks the OS for an Encrypted Payment Token and forwards it to your backend to process the MPGS `PAY` operation.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant RN as React Native
+    participant OS as Google/Apple Pay SDK
+    participant API as Node Backend
+    participant MPGS as Mastercard Gateway
+    
+    User->>RN: Taps "Google Pay" (Native UI)
+    RN->>OS: Request Payment (react-native-google-pay)
+    OS-->>User: Show Native Wallet Sheet
+    User->>OS: Authorize Payment
+    OS-->>RN: Encrypted devicePaymentToken
+    
+    RN->>API: POST /api/pay/google (with token)
+    API->>MPGS: Execute PAY (using devicePaymentToken)
+    MPGS-->>API: Transaction result
+    API-->>RN: Status (SUCCESS/FAILED)
+    RN-->>User: Navigate to Confirmation Screen
+```
+
+### Implementation Hooks (Included Placeholder Code)
+
+The repository provides extensive, well-documented placeholder hooks that are ready to be integrated into your production build:
+
+- **Google Pay** (`src/payments/useGooglePay.ts`): Fully implemented via `react-native-google-pay`. Grabs the `devicePaymentToken` and posts to the backend. Requires a physical/emulated Android device (no Expo Go).
+- **Apple Pay** (`src/payments/useApplePay.ts`): A heavily documented placeholder. Explains the strict Apple Developer Certificate requirements needed before Apple Pay can be initialized on iOS.
+- **PayPal** (`src/payments/usePayPal.ts`): A placeholder explaining the MPGS Browser Payment interaction model, which requires an out-of-app Browser redirect and a webhook/backend-return handler to correctly capture the payment.
 
 ## Running on a Physical Device
 
