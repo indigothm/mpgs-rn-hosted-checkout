@@ -12,9 +12,39 @@ A React Native Expo app integrating Mastercard Payment Gateway Services (MPGS) H
 
 - **Card payments** — MPGS Hosted Session with hosted fields (card number, expiry, CVV, name)
 - **3DS authentication** — Full 3DS2 flow (frictionless + challenge) inside the WebView
-- **Google Pay** — Native hook ready for Android dev builds
-- **Apple Pay** — Placeholder (requires Apple Developer setup)
-- **PayPal** — Placeholder (requires backend endpoints)
+- **Google Pay** — Native payment via `@rnw-community/react-native-payments` (dev builds only, hidden in Expo Go)
+- **Apple Pay** — Native payment via `@rnw-community/react-native-payments` (dev builds only, hidden in Expo Go)
+- **PayPal** — Requires MPGS Browser Payment integration (see documentation below)
+
+## Using Claude Code
+
+This project includes a [`skill.md`](skill.md) file that gives [Claude Code](https://docs.anthropic.com/en/docs/claude-code) deep context about the codebase — architecture, payment flows, file structure, MPGS integration patterns, and common tasks.
+
+### Setup
+
+Add the skill file to your Claude Code project settings so it's automatically loaded:
+
+```bash
+# From the project root, open Claude Code
+claude
+
+# Then inside Claude Code, run:
+/add-skill skill.md
+```
+
+Alternatively, reference it manually in any conversation:
+
+```
+@skill.md How does the 3DS challenge flow work?
+```
+
+### What it helps with
+
+- **Navigate the codebase** — understands the WebView/Native split, message protocol, and backend proxy architecture
+- **Add payment methods** — knows the pattern: hook + selector + message handler + backend route
+- **Modify checkout UI** — knows the HTML is a template literal in `checkoutHtml.ts` with MPGS hosted field iframes
+- **Debug 3DS issues** — understands the initiate -> authenticate -> challenge poll -> pay flow
+- **Extend the backend** — knows the MPGS REST API patterns, auth config, and route structure
 
 ## Prerequisites
 
@@ -55,7 +85,7 @@ The backend runs on `http://localhost:3001`.
 
 ### 4. Run the app
 
-Since the app uses `react-native-webview` (a native module), it requires a **development build** — Expo Go won't work.
+Since the app uses `react-native-webview` and `@rnw-community/react-native-payments` (native modules), it requires a **development build** — Expo Go won't work for wallet payments. Card payments will work in Expo Go, but Apple Pay and Google Pay buttons are automatically hidden when running in Expo Go.
 
 ```bash
 # iOS (requires Xcode)
@@ -74,8 +104,8 @@ npx expo start --dev-client
 ### 5. Test a payment
 
 1. Enter an amount (default: $10.00)
-2. Tap **Pay with Card**
-3. Fill in the test card details (see [Test Cards](#test-cards))
+2. Tap **Continue to Checkout**
+3. Fill in the test card details in the Credit Card accordion (see [Test Cards](#test-cards))
 4. Tap **Pay** — the 3DS flow will run
 5. You should see the **Payment Successful** screen
 
@@ -174,30 +204,28 @@ This minimises the bridge complexity — the WebView handles the entire card cap
 
 ## Wallets & Alternative Payments (Apple Pay, Google Pay)
 
-While the MPGS Hosted Session handles standard card capture beautifully inside a WebView, digital wallets (Apple Pay, Google Pay) require a robust Native-first approach in React Native. 
+The checkout WebView includes an accordion for digital wallets (Apple Pay, Google Pay). When a wallet button is tapped in the WebView, a `WALLET_CLICKED` message is sent to the native layer via `postMessage`. The native layer then invokes the OS payment sheet using `@rnw-community/react-native-payments` (W3C Payment Request API), collects the encrypted device payment token, and posts it to the backend.
 
-**Architectural Best Practice:** Wallet buttons must be rendered in the **Native UI**, not the HTML WebView. Apple strictly enforces Native button styling and behaviors for Apple Pay, and Google Pay requires native SDK invocation.
+Wallet accordion sections are automatically hidden when running in Expo Go (detected via `expo-constants`), since native payment modules are unavailable.
 
-The repository includes a Native UI component for this exact purpose: `src/components/PaymentMethodSelector.tsx`.
-
-### Native Wallet Flow
-
-Instead of capturing a card through an iframe, the Native App asks the OS for an Encrypted Payment Token and forwards it to your backend to process the MPGS `PAY` operation.
+### Wallet Payment Flow
 
 ```mermaid
 sequenceDiagram
     participant User
+    participant WV as WebView (Accordion)
     participant RN as React Native
     participant OS as Google/Apple Pay SDK
     participant API as Node Backend
     participant MPGS as Mastercard Gateway
-    
-    User->>RN: Taps "Google Pay" (Native UI)
-    RN->>OS: Request Payment (react-native-google-pay)
+
+    User->>WV: Taps "Google Pay" or "Apple Pay"
+    WV->>RN: postMessage({ type: WALLET_CLICKED, provider })
+    RN->>OS: PaymentRequest (react-native-payments)
     OS-->>User: Show Native Wallet Sheet
     User->>OS: Authorize Payment
     OS-->>RN: Encrypted devicePaymentToken
-    
+
     RN->>API: POST /api/pay/google (with token)
     API->>MPGS: Execute PAY (using devicePaymentToken)
     MPGS-->>API: Transaction result
@@ -205,13 +233,13 @@ sequenceDiagram
     RN-->>User: Navigate to Confirmation Screen
 ```
 
-### Implementation Hooks (Included Placeholder Code)
+### Implementation Hooks
 
-The repository provides extensive, well-documented placeholder hooks that are ready to be integrated into your production build:
+Both wallet hooks use `@rnw-community/react-native-payments` (W3C Payment Request API) and automatically detect Expo Go via `expo-constants` — wallet buttons are hidden when native modules are unavailable.
 
-- **Google Pay** (`src/payments/useGooglePay.ts`): Fully implemented via `react-native-google-pay`. Grabs the `devicePaymentToken` and posts to the backend. Requires a physical/emulated Android device (no Expo Go).
-- **Apple Pay** (`src/payments/useApplePay.ts`): A heavily documented placeholder. Explains the strict Apple Developer Certificate requirements needed before Apple Pay can be initialized on iOS.
-- **PayPal** (`src/payments/usePayPal.ts`): A placeholder explaining the MPGS Browser Payment interaction model, which requires an out-of-app Browser redirect and a webhook/backend-return handler to correctly capture the payment.
+- **Google Pay** (`src/payments/useGooglePay.ts`): Implemented via `PaymentRequest` with `android-pay` method. Grabs the `devicePaymentToken` and posts it to the backend. Requires a dev build on Android (hidden in Expo Go).
+- **Apple Pay** (`src/payments/useApplePay.ts`): Implemented via `PaymentRequest` with `apple-pay` method. Requires an Apple Developer Merchant ID configured in the hook. Requires a dev build on iOS (hidden in Expo Go).
+- **PayPal** (`src/payments/usePayPal.ts`): Requires the MPGS Browser Payment flow. Check the [MPGS PayPal Documentation](https://tyro.gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalPaymentMethods/paypal.html?locale=en_US) for full implementation details. PayPal payments involve an out-of-app redirect using `INITIATE_BROWSER_PAYMENT` and a backend webhook or deeply-linked return handler to confirm capture.
 
 ## Running on a Physical Device
 
@@ -232,7 +260,7 @@ export const API_BASE_URL = 'http://192.168.x.x:3001';
 | GET | `/api/3ds/status` | Polls 3DS transaction status |
 | POST | `/api/tokenize` | Creates a card token from a session |
 | POST | `/api/pay` | `PAY` — session, token, or device payment token |
-| POST | `/api/pay/google` | Google Pay `PAY` shortcut |
+| POST | `/api/pay/google` | Wallet `PAY` shortcut (used by both Google Pay and Apple Pay) |
 
 ## Environment Variables
 

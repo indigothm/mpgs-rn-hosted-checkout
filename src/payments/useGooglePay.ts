@@ -1,15 +1,12 @@
-// src/payments/useGooglePay.ts — Native Google Pay hook
-//
-// Uses react-native-google-pay to request payment with MPGS gateway tokenization.
-// The token is sent to the backend via /api/pay/google.
-//
-// NOTE: This requires a development build (not Expo Go) since it uses native modules.
-// Install: npx expo install react-native-google-pay
-
 import { useState, useCallback } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+// @ts-ignore
+import { PaymentRequest } from '@rnw-community/react-native-payments';
 import { api } from '../api/client';
 import type { MpgsConfig, PayResponse } from '../api/types';
+
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 interface GooglePayResult {
   success: boolean;
@@ -19,8 +16,7 @@ interface GooglePayResult {
 
 export function useGooglePay() {
   const [loading, setLoading] = useState(false);
-
-  const available = Platform.OS === 'android';
+  const available = Platform.OS === 'android' && !isExpoGo;
 
   const requestPayment = useCallback(
     async (
@@ -35,61 +31,72 @@ export function useGooglePay() {
       setLoading(true);
 
       try {
-        // Dynamic import to avoid crashes on iOS where the module doesn't exist
-        const { default: GooglePay } = await import('react-native-google-pay');
-
-        const requestData = {
-          cardPaymentMethod: {
-            tokenizationSpecification: {
-              type: 'PAYMENT_GATEWAY' as const,
-              gateway: 'mpgs',
-              gatewayMerchantId: config.merchantId,
+        const METHOD_DATA = [
+          {
+            supportedMethods: 'android-pay',
+            data: {
+              supportedNetworks: ['visa', 'masterCard', 'amex'],
+              currencyCode: currency,
+              countryCode: 'US', // Update according to your merchant region
+              merchantIdentifier: config.merchantId,
+              environment: 'TEST', // Change to 'PRODUCTION' for live
+              gatewayConfig: {
+                gateway: 'mpgs',
+                gatewayMerchantId: config.merchantId,
+              },
             },
-            allowedCardNetworks: ['VISA', 'MASTERCARD'] as const,
-            allowedCardAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'] as const,
           },
-          transaction: {
-            totalPrice: amount,
-            totalPriceStatus: 'FINAL' as const,
-            currencyCode: currency,
+        ];
+
+        const DETAILS = {
+          id: `GPay-${Date.now()}`,
+          displayItems: [
+            {
+              label: 'Order Total',
+              amount: { currency, value: amount },
+            },
+          ],
+          total: {
+            label: 'Merchant',
+            amount: { currency, value: amount },
           },
-          merchantName: 'MPGS Checkout',
-          environment: 'TEST' as const,
         };
 
-        // Check if Google Pay is available
-        await GooglePay.setEnvironment(GooglePay.ENVIRONMENT_TEST);
-        const isReady = await GooglePay.isReadyToPay(requestData);
+        const pr = new PaymentRequest(METHOD_DATA as any, DETAILS);
 
-        if (!isReady) {
+        const canMakePayment = await pr.canMakePayment();
+        if (!canMakePayment) {
           setLoading(false);
-          return { success: false, error: 'Google Pay is not available on this device' };
+          return { success: false, error: 'Google Pay is not configured or available on this device' };
         }
 
-        // Request payment
-        const token = await GooglePay.requestPayment(requestData);
+        const paymentResponse = await pr.show();
+        const token = (paymentResponse as any).details?.paymentToken;
 
-        // Send token to backend
         const orderId = `GPay-${Date.now()}`;
         const result = await api.post<PayResponse>('/api/pay/google', {
           orderId,
           transactionId: orderId,
           amount,
           currency,
-          devicePaymentToken: token,
+          devicePaymentToken: typeof token === 'string' ? token : JSON.stringify(token),
           walletProvider: 'GOOGLE_PAY',
         });
 
-        setLoading(false);
-        return { success: result.result === 'SUCCESS', data: result };
+        if (result.result === 'SUCCESS') {
+          await paymentResponse.complete('success' as any);
+          setLoading(false);
+          return { success: true, data: result };
+        } else {
+          await paymentResponse.complete('fail' as any);
+          setLoading(false);
+          return { success: false, error: 'Payment declined by gateway' };
+        }
       } catch (error: any) {
         setLoading(false);
-
-        // User cancelled
-        if (error?.code === 'CANCELED' || error?.message?.includes('cancel')) {
+        if (error?.message?.toLowerCase().includes('cancel')) {
           return { success: false, error: 'Cancelled by user' };
         }
-
         return { success: false, error: error.message || 'Google Pay failed' };
       }
     },

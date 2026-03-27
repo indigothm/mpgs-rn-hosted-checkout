@@ -3,7 +3,8 @@
 export type WebViewMessage =
   | { type: 'PAYMENT_RESULT'; result: 'SUCCESS' | 'FAILED'; data: any }
   | { type: 'ERROR'; message: string }
-  | { type: 'LOG'; message: string };
+  | { type: 'LOG'; message: string }
+  | { type: 'WALLET_CLICKED'; provider: 'APPLE_PAY' | 'GOOGLE_PAY' | 'PAYPAL' };
 
 /**
  * Parse a raw postMessage string into a typed WebViewMessage.

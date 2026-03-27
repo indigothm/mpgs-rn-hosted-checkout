@@ -1,6 +1,7 @@
-// src/payments/usePayPal.ts — PayPal placeholder
+// src/payments/usePayPal.ts — PayPal (Browser Payment) Template
 //
-// PayPal is NOT yet implemented. This hook returns { available: false } for now.
+// Please check the MPGS documentation for full implementation details:
+// https://tyro.gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalPaymentMethods/paypal.html?locale=en_US
 //
 // To implement PayPal via MPGS, you will need:
 //
@@ -13,8 +14,8 @@
 //
 // 2. Frontend flow (WebView-based):
 //    - Call /api/paypal/create to get the PayPal redirect URL
-//    - Open a WebView pointing to that URL
-//    - Monitor onNavigationStateChange for the return/cancel URLs
+//    - Open a WebView (or in-app browser) pointing to that URL
+//    - Monitor onNavigationStateChange or Deep Links for the return/cancel URLs
 //    - On return: call /api/paypal/capture
 //    - On cancel: navigate back
 //    - Post result to native via postMessage
@@ -23,7 +24,7 @@
 //    - Enable PayPal in your MPGS merchant profile
 //    - Configure PayPal credentials in MPGS dashboard
 //
-// 4. Payment request structure:
+// 4. Payment request structure (for backend):
 //    {
 //      apiOperation: "INITIATE_BROWSER_PAYMENT",
 //      browserPayment: {
@@ -42,10 +43,11 @@
 
 export function usePayPal() {
   return {
-    available: false as const,
+    available: false,
     loading: false,
     requestPayment: async () => {
-      return { success: false, error: 'PayPal is not yet implemented' };
+      // Direct users to to the documentation
+      return { success: false, error: 'Please check the MPGS documentation for PayPal implementation details.' };
     },
   };
 }

@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    backgroundColor: '#1e0d1c', /* Opaque alternative to fix Android shadow inset */
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,

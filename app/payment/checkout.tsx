@@ -6,8 +6,14 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { getCheckoutHtml } from '../../src/checkout/checkoutHtml';
 import { parseWebViewMessage } from '../../src/checkout/messages';
+import { useApplePay } from '../../src/payments/useApplePay';
+import { useGooglePay } from '../../src/payments/useGooglePay';
+import { usePayPal } from '../../src/payments/usePayPal';
+
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -22,6 +28,10 @@ export default function CheckoutScreen() {
     enable3ds: string;
   }>();
 
+  const applePay = useApplePay();
+  const googlePay = useGooglePay();
+  const payPal = usePayPal();
+
   const webViewRef = useRef<WebView>(null);
 
   const html = getCheckoutHtml({
@@ -33,6 +43,7 @@ export default function CheckoutScreen() {
     amount: params.amount ?? '10.00',
     currency: params.currency ?? 'AUD',
     enable3ds: params.enable3ds === 'true',
+    isExpoGo,
   });
 
   const handleMessage = useCallback(
@@ -77,9 +88,53 @@ export default function CheckoutScreen() {
           // Optional: forward WebView logs to console for debugging
           console.log('[WebView]', msg.message);
           break;
+
+        case 'WALLET_CLICKED':
+          (async () => {
+             const { provider } = msg;
+             let result: any;
+             const config = {
+               baseUrl: params.baseUrl ?? '',
+               merchantId: params.merchantId ?? '',
+               formVersion: params.formVersion ?? '',
+               enable3ds: params.enable3ds === 'true'
+             };
+          
+             if (provider === 'APPLE_PAY') {
+               result = await applePay.requestPayment(params.amount ?? '', params.currency ?? '', config);
+             } else if (provider === 'GOOGLE_PAY') {
+               result = await googlePay.requestPayment(params.amount ?? '', params.currency ?? '', config);
+             } else if (provider === 'PAYPAL') {
+               result = await payPal.requestPayment();
+             }
+             
+             if (!result) return;
+             
+             if (result.success) {
+               router.replace({
+                 pathname: '/payment/confirmation',
+                 params: {
+                   orderId: result.data?.order?.id ?? '',
+                   amount: params.amount ?? '',
+                   currency: params.currency ?? '',
+                   gatewayCode: result.data?.response?.gatewayCode ?? 'APPROVED',
+                   resultJson: JSON.stringify(result.data),
+                 },
+               });
+             } else {
+                if (result.error === 'Cancelled by user') return; // Do nothing
+                router.replace({
+                  pathname: '/payment/error',
+                  params: {
+                    message: result.error ?? 'Wallet payment failed',
+                  },
+                });
+             }
+          })();
+          break;
       }
     },
-    [router, params.amount, params.currency]
+    [router, params.amount, params.currency, params.baseUrl, params.merchantId, params.formVersion, params.enable3ds, applePay, googlePay, payPal]
   );
 
   // Handle Android back button during 3DS challenge

@@ -13,10 +13,11 @@ interface CheckoutHtmlConfig {
   amount: string;        // Payment amount
   currency: string;      // Currency code (e.g. "AUD")
   enable3ds: boolean;    // Whether 3DS is enabled
+  isExpoGo: boolean;     // Whether running in Expo Go (native wallet modules unavailable)
 }
 
 export function getCheckoutHtml(config: CheckoutHtmlConfig): string {
-  const { baseUrl, merchantId, formVersion, sessionId, backendUrl, amount, currency, enable3ds } = config;
+  const { baseUrl, merchantId, formVersion, sessionId, backendUrl, amount, currency, enable3ds, isExpoGo } = config;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -169,6 +170,75 @@ export function getCheckoutHtml(config: CheckoutHtmlConfig): string {
       cursor: not-allowed;
     }
 
+    /* Accordion Styles */
+    .accordion { display: flex; flex-direction: column; gap: 12px; }
+    .accordion-item {
+      background: #0b1120;
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      overflow: hidden;
+      position: relative;
+    }
+    .accordion-item::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(99,102,241,0.1), transparent 60%);
+      pointer-events: none;
+    }
+    .accordion-header {
+      width: 100%;
+      padding: 18px 16px;
+      background: transparent;
+      border: none;
+      color: #e5e7eb;
+      font-size: 16px;
+      font-weight: 600;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      z-index: 10;
+      position: relative;
+    }
+    .accordion-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      padding: 0 16px;
+      position: relative;
+      z-index: 10;
+    }
+    .accordion-item.active .accordion-content {
+      max-height: 600px; /* enough to fit form */
+      padding-bottom: 20px;
+    }
+    .accordion-item.active .accordion-header .acc-icon {
+      transform: rotate(180deg);
+    }
+    .acc-icon { transition: transform 0.3s ease; font-size: 12px; color: #6b7280; }
+
+    /* Wallet Buttons */
+    .wallet-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 999px;
+      border: none;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-appearance: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .wallet-btn:active { opacity: 0.8; }
+    .apple-pay { background: #000; border: 1px solid #333; color: #fff; }
+    .google-pay { background: #fff; border: 1px solid #dadce0; color: #3c4043; }
+    .paypal { background: #ffc439; color: #111; }
+
     #challenge-overlay {
       position: fixed;
       inset: 0;
@@ -232,36 +302,75 @@ export function getCheckoutHtml(config: CheckoutHtmlConfig): string {
 </head>
 <body>
 
-<div class="card">
-  <div class="card-inner">
-    <h2>Card Payment</h2>
-    <div class="subtitle">Hosted Session · Secure</div>
+<div class="accordion">
+  
+  <!-- Accordion 1: Card Details -->
+  <div class="accordion-item active" id="acc-card">
+    <button class="accordion-header" onclick="toggleAccordion('acc-card')">
+      <span>Credit Card</span>
+      <span class="acc-icon">▼</span>
+    </button>
+    <div class="accordion-content">
+      <div class="card-inner">
+        <div class="amount-display">
+          Amount: <strong>${currency} ${amount}</strong>
+        </div>
 
-    <div class="amount-display">
-      Amount: <strong>${currency} ${amount}</strong>
+        <div id="card-errors" class="error-box"></div>
+
+        <label for="card-number">Card number</label>
+        <input id="card-number" readonly />
+
+        <label>Expiry (MM / YY)</label>
+        <div class="row">
+          <input id="expiry-month" readonly />
+          <input id="expiry-year" readonly />
+        </div>
+
+        <label for="security-code">CVV</label>
+        <input id="security-code" readonly />
+
+        <label for="cardholder-name">Name on card</label>
+        <input id="cardholder-name" readonly />
+
+        <button id="pay" class="pay-btn" type="button">Pay ${currency} ${amount}</button>
+      </div>
     </div>
-
-    <div id="card-errors" class="error-box"></div>
-
-    <div class="section-label">Card Details</div>
-
-    <label for="card-number">Card number</label>
-    <input id="card-number" readonly />
-
-    <label>Expiry (MM / YY)</label>
-    <div class="row">
-      <input id="expiry-month" readonly />
-      <input id="expiry-year" readonly />
-    </div>
-
-    <label for="security-code">CVV</label>
-    <input id="security-code" readonly />
-
-    <label for="cardholder-name">Name on card</label>
-    <input id="cardholder-name" readonly />
-
-    <button id="pay" class="pay-btn" type="button">Pay ${currency} ${amount}</button>
   </div>
+
+  ${isExpoGo ? '<!-- Digital Wallets hidden in Expo Go -->' : `<!-- Accordion 2: Digital Wallets -->
+  <div class="accordion-item" id="acc-wallets">
+    <button class="accordion-header" onclick="toggleAccordion('acc-wallets')">
+      <span>Digital Wallets</span>
+      <span class="acc-icon">▼</span>
+    </button>
+    <div class="accordion-content">
+      <div class="card-inner" style="display: flex; flex-direction: column; gap: 12px;">
+        <button class="wallet-btn apple-pay" onclick="fireWallet('APPLE_PAY')" type="button">
+          Apple Pay
+        </button>
+        <button class="wallet-btn google-pay" onclick="fireWallet('GOOGLE_PAY')" type="button">
+           GPay
+        </button>
+      </div>
+    </div>
+  </div>`}
+
+  <!-- Accordion 3: PayPal -->
+  <div class="accordion-item" id="acc-paypal">
+    <button class="accordion-header" onclick="toggleAccordion('acc-paypal')">
+      <span>PayPal</span>
+      <span class="acc-icon">▼</span>
+    </button>
+    <div class="accordion-content">
+      <div class="card-inner">
+        <button class="wallet-btn paypal" onclick="fireWallet('PAYPAL')" type="button">
+          <i>PayPal</i>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <div id="challenge-overlay">
@@ -300,6 +409,25 @@ let resultSent = false;
     if (anti) anti.parentNode.removeChild(anti);
   }
 })();
+
+// Accordion Toggler
+function toggleAccordion(id) {
+  var items = document.querySelectorAll('.accordion-item');
+  items.forEach(function(item) {
+    if (item.id === id) {
+      item.classList.toggle('active');
+    } else {
+      item.classList.remove('active');
+    }
+  });
+}
+
+// Wallet bridge
+function fireWallet(provider) {
+  try {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "WALLET_CLICKED", provider: provider }));
+  } catch(e) {}
+}
 
 function log(msg) {
   if (logEl) {
