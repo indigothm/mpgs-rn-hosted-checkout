@@ -17,5 +17,5 @@ export const API_BASE_URL = Platform.select({
 export const FEATURES = {
   GOOGLE_PAY_ENABLED: Platform.OS === 'android',
   APPLE_PAY_ENABLED: false, // Placeholder — requires Apple Developer setup
-  PAYPAL_ENABLED: false,    // Placeholder — requires backend endpoints
+  PAYPAL_ENABLED: true,    // Enabled with backend endpoints
 } as const;

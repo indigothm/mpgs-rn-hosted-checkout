@@ -282,5 +282,53 @@ export async function payWithDevicePayment(
   return res.data;
 }
 
+// --- Browser Payments (PayPal) ---
+
+export async function initiateBrowserPayment(
+  orderId: string,
+  transactionId: string,
+  amount: string | number,
+  currency: string,
+  returnUrl: string,
+  cancelUrl: string
+): Promise<any> {
+  const url = `${BASE_URL}/api/rest/version/${API_VERSION}/merchant/${MERCHANT_ID}/order/${orderId}/transaction/${transactionId}`;
+
+  const payload: any = {
+    apiOperation: "INITIATE_BROWSER_PAYMENT",
+    browserPayment: {
+      operation: "PAY",
+      paypal: {
+        displayShippingAddress: false,
+        overrideShippingAddress: false,
+      },
+    },
+    interaction: {
+      returnUrl,
+      cancelUrl,
+    },
+    order: {
+      amount: String(amount),
+      currency,
+    },
+  };
+
+  console.log("Browser Payment Request:", payload);
+  const res = await axios.put(url, payload, authConfig());
+  console.log("Browser Payment Response:", res.status, res.data);
+  return res.data;
+}
+
+export async function retrieveTransaction(
+  orderId: string,
+  transactionId: string
+): Promise<any> {
+  const url = `${BASE_URL}/api/rest/version/${API_VERSION}/merchant/${MERCHANT_ID}/order/${orderId}/transaction/${transactionId}`;
+  console.log("Retrieve Transaction Request:", url);
+  const res = await axios.get(url, authConfig());
+  console.log("Retrieve Transaction Response:", res.status, res.data);
+  return res.data;
+}
+
 /** @deprecated Use payWithDevicePayment instead */
 export const payWithGooglePay = payWithDevicePayment;

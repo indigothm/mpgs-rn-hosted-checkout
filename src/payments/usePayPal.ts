@@ -3,51 +3,79 @@
 // Please check the MPGS documentation for full implementation details:
 // https://tyro.gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalPaymentMethods/paypal.html?locale=en_US
 //
-// To implement PayPal via MPGS, you will need:
-//
-// 1. Backend endpoints:
-//    - POST /api/paypal/create
-//      - Calls MPGS INITIATE_BROWSER_PAYMENT with browserPayment.paypal
-//      - Returns a redirect URL from MPGS
-//    - POST /api/paypal/capture
-//      - Calls MPGS to capture/confirm the PayPal payment after redirect
-//
-// 2. Frontend flow (WebView-based):
-//    - Call /api/paypal/create to get the PayPal redirect URL
-//    - Open a WebView (or in-app browser) pointing to that URL
-//    - Monitor onNavigationStateChange or Deep Links for the return/cancel URLs
-//    - On return: call /api/paypal/capture
-//    - On cancel: navigate back
-//    - Post result to native via postMessage
-//
-// 3. MPGS configuration:
-//    - Enable PayPal in your MPGS merchant profile
-//    - Configure PayPal credentials in MPGS dashboard
-//
-// 4. Payment request structure (for backend):
-//    {
-//      apiOperation: "INITIATE_BROWSER_PAYMENT",
-//      browserPayment: {
-//        operation: "PAY",
-//        paypal: {
-//          displayShippingAddress: false,
-//          overrideShippingAddress: false,
-//        },
-//      },
-//      interaction: {
-//        returnUrl: "https://your-domain.com/paypal/return",
-//        cancelUrl: "https://your-domain.com/paypal/cancel",
-//      },
-//      order: { amount, currency },
-//    }
+
+import { useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import { createPayPalPayment, capturePayPalPayment } from '../api/mpgs';
 
 export function usePayPal() {
+  const [loading, setLoading] = useState(false);
+
+  const requestPayment = async (amount: number, currency: string) => {
+    setLoading(true);
+    try {
+      const returnUrl = Linking.createURL('/paypal/return');
+      const cancelUrl = Linking.createURL('/paypal/cancel');
+
+      // 1. Create payment session on backend
+      const createRes = await createPayPalPayment({
+        amount,
+        currency,
+        returnUrl,
+        cancelUrl,
+      });
+
+      // Get redirect URL from response
+      const redirectUrl = createRes?.browserPayment?.interaction?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error('Could not retrieve PayPal redirect URL from gateway.');
+      }
+
+      // 2. Open WebBrowser for secure authentication
+      const browserResult = await WebBrowser.openAuthSessionAsync(redirectUrl, returnUrl);
+
+      // Check result type
+      if (browserResult.type === 'cancel' || browserResult.type === 'dismiss') {
+        return { success: false, error: 'Payment was cancelled.' };
+      }
+
+      if (browserResult.type === 'success' && browserResult.url) {
+        // 3. Finalize and capture payment
+        // Extract the original order and txn IDs from the create response
+        // Note: The backend generated these IDs and passed them to MPGS
+        const returnedOrderId = createRes.order?.id || createRes.orderId;
+        const returnedTxnId = createRes.transaction?.id || createRes.transactionId;
+
+        if (!returnedOrderId || !returnedTxnId) {
+             throw new Error('Missing transaction IDs, cannot capture payment.');
+        }
+
+        const captureRes = await capturePayPalPayment({
+          orderId: returnedOrderId,
+          transactionId: returnedTxnId,
+        });
+
+        if (captureRes.result === 'SUCCESS') {
+           return { success: true };
+        } else {
+           return { success: false, error: 'Payment capture failed.' };
+        }
+      }
+
+      return { success: false, error: 'Unknown browser result' };
+
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Payment failed' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
-    available: false,
-    loading: false,
-    requestPayment: async () => {
-      // Direct users to to the documentation
-      return { success: false, error: 'Please check the MPGS documentation for PayPal implementation details.' };
-    },
+    available: true,
+    loading,
+    requestPayment,
   };
 }
+

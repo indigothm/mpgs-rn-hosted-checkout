@@ -14,7 +14,7 @@ A React Native Expo app integrating Mastercard Payment Gateway Services (MPGS) H
 - **3DS authentication** — Full 3DS2 flow (frictionless + challenge) inside the WebView
 - **Google Pay** — Native payment via `@rnw-community/react-native-payments` (dev builds only, hidden in Expo Go)
 - **Apple Pay** — Native payment via `@rnw-community/react-native-payments` (dev builds only, hidden in Expo Go)
-- **PayPal** — Requires MPGS Browser Payment integration (see documentation below)
+- **PayPal** — Native integration via MPGS Browser Payments (`expo-web-browser`)
 
 ## Using Claude Code
 
@@ -244,12 +244,10 @@ Both wallet hooks use `@rnw-community/react-native-payments` (W3C Payment Reques
 
 - **Google Pay** (`src/payments/useGooglePay.ts`): Implemented via `PaymentRequest` with `android-pay` method. Grabs the `devicePaymentToken` and posts it to the backend. Requires a dev build on Android (hidden in Expo Go).
 - **Apple Pay** (`src/payments/useApplePay.ts`): Implemented via `PaymentRequest` with `apple-pay` method. Requires an Apple Developer Merchant ID configured in the hook. Requires a dev build on iOS (hidden in Expo Go).
-- **PayPal** (`src/payments/usePayPal.ts`): Requires MPGS Browser Payments. To set it up:
-  1. Enable PayPal as a payment method in your MPGS merchant portal
-  2. Add a `POST /api/pay/paypal` backend route that calls MPGS `INITIATE_BROWSER_PAYMENT` with `browserPayment.operation: "PAY"` and `sourceOfFunds.type: "PAYPAL"`
-  3. MPGS returns a `redirectUrl` — open it in the device browser or an in-app browser so the user can authenticate with PayPal
-  4. Configure a return URL that deep-links back to your app (e.g. via Expo Linking)
-  5. On return, call MPGS `RETRIEVE_ORDER` to confirm the payment status
+- **PayPal** (`src/payments/usePayPal.ts`): Implemented via MPGS Browser Payments using `expo-web-browser`. To run this flow:
+  1. Enable PayPal as a payment method in your MPGS merchant portal.
+  2. Configure your PayPal credentials in the MPGS dashboard.
+  3. No codebase changes are needed. The frontend triggers the backend `POST /api/paypal/create` which initiates the session, opens an in-app browser for secure authentication, and deep-links back using Expo Linking. Finally, the app calls `POST /api/paypal/capture` to confirm the payment.
 
 ## Running on a Physical Device
 
@@ -271,6 +269,8 @@ export const API_BASE_URL = 'http://192.168.x.x:3001';
 | POST | `/api/tokenize` | Creates a card token from a session |
 | POST | `/api/pay` | `PAY` — session, token, or device payment token |
 | POST | `/api/pay/google` | Wallet `PAY` shortcut (used by both Google Pay and Apple Pay) |
+| POST | `/api/paypal/create` | Initiates PayPal Browser Payment and returns redirect URLs |
+| POST | `/api/paypal/capture` | Retrieves transaction to confirm PayPal capture |
 
 ## Environment Variables
 

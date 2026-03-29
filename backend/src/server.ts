@@ -15,6 +15,8 @@ import {
   retrieveToken,
   pay,
   payWithDevicePayment,
+  initiateBrowserPayment,
+  retrieveTransaction,
 } from "./mpgs";
 
 const app = express();
@@ -154,6 +156,55 @@ app.get("/api/token/:tokenId", async (req, res, next) => {
   try {
     const axiosRes = await retrieveToken(req.params.tokenId);
     res.status(axiosRes.status).json(axiosRes.data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/paypal/create
+app.post("/api/paypal/create", async (req, res, next) => {
+  try {
+    const orderId = req.body.orderId || randomUUID();
+    const txnId = req.body.transactionId || orderId;
+
+    const result = await initiateBrowserPayment(
+      orderId,
+      txnId,
+      req.body.amount,
+      req.body.currency,
+      req.body.returnUrl,
+      req.body.cancelUrl
+    );
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/paypal/capture
+app.post("/api/paypal/capture", async (req, res, next) => {
+  try {
+    const { orderId, transactionId } = req.body;
+    // Retrieve the transaction from MPGS to confirm it was successful
+    const result = await retrieveTransaction(orderId, transactionId);
+
+    // Save to DB (assuming success if result.result === "SUCCESS")
+    let amount = 0;
+    let currency = "";
+    if (result.order) {
+      amount = parseFloat(result.order.amount);
+      currency = result.order.currency;
+    }
+
+    await upsertOrder(
+      orderId,
+      amount,
+      currency,
+      result.result,
+      JSON.stringify(result)
+    );
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

@@ -105,7 +105,7 @@ export default function CheckoutScreen() {
              } else if (provider === 'GOOGLE_PAY') {
                result = await googlePay.requestPayment(params.amount ?? '', params.currency ?? '', config);
              } else if (provider === 'PAYPAL') {
-               result = await payPal.requestPayment();
+               result = await payPal.requestPayment(parseFloat(params.amount ?? '0'), params.currency ?? 'AUD');
              }
              
              if (!result) return;
